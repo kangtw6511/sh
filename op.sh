@@ -1,69 +1,62 @@
 #!/bin/sh
 
-# Set the following sysctl values to optimize network performance
-sysctl net.inet.tcp.mssdflt=1460
-sysctl net.inet.tcp.sendbuf_max=16777216
-sysctl net.inet.tcp.recvbuf_max=16777216
-sysctl net.inet.tcp.sendbuf_inc=8192
-sysctl net.inet.tcp.recvbuf_inc=32768
-sysctl net.inet.tcp.delayed_ack=0
-sysctl net.inet.tcp.slowstart_flightsize=40
-sysctl net.inet.tcp.local_slowstart_flightsize=40
-sysctl net.inet.tcp.tso=0
+# ZFS ARC 최적화
+sudo sysctl vfs.zfs.arc_max=$((4*1024*1024*1024))
+sudo sysctl vfs.zfs.arc_min=$((2*1024*1024*1024))
 
-# Set the following sysctl values to optimize ZFS performance
-sysctl vfs.zfs.arc_min=536870912
-sysctl vfs.zfs.arc_max=1073741824
-sysctl vfs.zfs.vdev.cache.size=33554432
-sysctl vfs.zfs.vdev.cache.max=67108864
-sysctl vfs.zfs.vdev.cache.bshift=17
-sysctl vfs.zfs.prefetch_disable=1
-sysctl vfs.zfs.txg.timeout=5
-sysctl vfs.zfs.resilver_delay=1
+# Swap Space 최적화
+sudo mdconfig -a -t swap -s 8g -u 1
+sudo swapon /dev/md1
 
-# Set the following sysctl values to optimize virtual memory performance
-sysctl vm.pmap.pg_ps_enabled=1
-sysctl vm.pmap.pg_ps_max=2048
-sysctl vm.pmap.pg_ps_partial=128
-sysctl vm.pmap.pg_ps_limit=512
-sysctl vm.pmap.pg_ps_rate=100
+# TCP 설정 변경
+sudo sysrc net.inet.tcp.sendbuf_max="16777216"
+sudo sysrc net.inet.tcp.recvbuf_max="16777216"
+sudo sysrc net.inet.tcp.sendbuf_inc="8192"
+sudo sysrc net.inet.tcp.recvbuf_inc="16384"
+sudo sysrc net.inet.tcp.sendspace="65536"
+sudo sysrc net.inet.tcp.recvspace="65536"
+sudo sysrc net.inet.tcp.cc.algorithm="cubic"
+sudo sysrc net.inet.tcp.mssdflt="1460"
+sudo sysctl net.inet.tcp.tso=0
+sudo sysctl net.inet.tcp.tso6=0
 
-# Set the following sysctl values to optimize CPU performance
-sysctl kern.sched.preempt_thresh=224
-sysctl kern.sched.balance_interval=250000
-sysctl kern.sched.slice=1
-sysctl kern.sched.steal_thresh=2
-sysctl kern.sched.preemption=1
+# PF 패킷 필터링 최적화
+sudo sysrc pf_enable="YES"
+sudo sysrc pf_flags="-e"
+sudo sysrc pf_rules="/etc/pf.conf"
+sudo touch /etc/pf.conf
+sudo chmod 644 /etc/pf.conf
 
-# Set the following sysctl values to optimize memory performance
-sysctl vm.vmtotal.anonmin=32768
-sysctl vm.vmtotal.anonmax=262144
-sysctl vm.vmtotal.vmtune=1
+# Swap Space 자동 마운트 설정
+echo '/dev/md1 none swap sw 0 0' | sudo tee -a /etc/fstab
 
-# Set the following sysctl values to optimize I/O performance
-sysctl kern.cam.scsi.spc.sense_error=0
-sysctl kern.cam.scsi.spc.disable_synch=1
-sysctl kern.cam.scsi.max_dev_high=64
-sysctl kern.cam.scsi.max_dev_low=16
-sysctl kern.cam.scsi.max_lun=64
-sysctl kern.cam.scsi.disk.write_cache=1
-sysctl kern.cam.scsi.delay=0
-sysctl kern.cam.scsi.maxcount=128
-sysctl kern.cam.scsi.maxtags=32
-sysctl kern.cam.scsi.tag_burst_limit=30
+# Swap Space 압축
+sudo sysrc zfs_compress=lz4
+sudo zfs set compression=lz4 swap
 
-# Set the following sysctl values to optimize file system performance
-sysctl kern.maxfiles=200000
-sysctl kern.maxfilesperproc=100000
+# TCP 튜닝
+sudo sysctl net.inet.tcp.delayed_ack=0
+sudo sysctl net.inet.tcp.blackhole=2
+sudo sysctl net.inet.tcp.mssdflt=1460
+sudo sysctl net.inet.tcp.minmss=536
+sudo sysctl net.inet.tcp.sack.enable=1
+sudo sysctl net.inet.tcp.sack.maxholes=128
+sudo sysctl net.inet.tcp.sack.globalmaxholes=65536
+sudo sysctl net.inet.tcp.always_keepalive=1
+sudo sysctl net.inet.tcp.fast_finwait2_recycle=1
+sudo sysctl net.inet.tcp.msl=500
+sudo sysctl net.inet.tcp.v6mssdflt=1420
 
-# Set the following sysctl values to optimize TCP/IP network performance
-sysctl net.inet.tcp.inflight.enable=1
-sysctl net.inet.tcp.inflight.debug=0
-sysctl net.inet.tcp.inflight.max=1073741824
-sysctl net.inet.tcp.inflight.min=524288
-sysctl net.inet.tcp.inflight.stab=64
-sysctl net.inet.tcp.inflight.start=1048576
+# TCP Keepalive 설정
+sudo sysctl net.inet.tcp.keepidle=30000
+sudo sysctl net.inet.tcp.keepintvl=2000
+sudo sysctl net.inet.tcp.keepcnt=5
 
-# Reboot the system
-shutdown -r now
+# IPFW 패킷 필터링 최적화
+sudo sysrc firewall_enable="YES"
+sudo sysrc firewall_type="open"
+sudo sysrc firewall_quiet="YES"
+sudo sysrc firewall_logging="NO"
 
+# 재부팅
+sudo reboot
